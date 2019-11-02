@@ -1,0 +1,235 @@
+//objective is to produce an object oriented script for line tracking and collision avoidance
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////US_SENSOR_CLASS////////////////////////////////////////
+
+/*class detailing attributes and methods associated with collision avoidance,
+  could be included as a header file and named as an object within the main
+  code*/
+
+class US_Sensor {
+  public:
+    //defining ultrasonic module pins
+    const int trigPin = 12;
+    const int echoPin = 11;
+    int Distance;
+
+    int Distance_Test();
+    int get_PWM();
+
+  private:
+    int Time;
+    int getTime();
+};
+
+//method to obtain distance from target object
+int US_Sensor::Distance_Test() {
+  Time = getTime();
+  Distance = Time * 0.345 / 2;
+  return Distance;
+}
+
+//obtain time from private getTime method
+int US_Sensor::getTime() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(5);
+  digitalWrite(trigPin, LOW);
+  Time = pulseIn(echoPin, HIGH);
+  return Time;
+}
+int US_Sensor::get_PWM() {
+  int x;
+  if (Distance <= 500 && Distance > 250) {
+    x = 100;
+  }
+  else if (Distance <= 250) {
+    x = 0;
+  }
+  else {
+    x = 150;
+  }
+
+  return x;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////MOTOR_CLASS/////////////////////////////////////////////
+
+/*class detailing attributes and methods associated with motor control,
+  could be included as a header file and named as an object within the
+  main code*/
+
+class Motor {
+    //declaring public attributes of the Motor class
+  public:
+    //declaring public attributes of the Motor class
+    const int ENA = 5;
+    const int ENB = 6;
+    const int IN1 = 2;
+    const int IN2 = 4;
+    const int IN3 = 7;
+    const int IN4 = 8;
+    int pwmR;
+    int pwmL;
+    int pwm;
+
+    //declaring public methods associated with the Motor class
+    void Forward(int pwmR, int pwmL);
+    void Left(int pwmR, int pwmL);
+    void Right(int pwmR, int pwmL);
+    void Back(int pwmR, int pwmL);
+    void Stop();
+};
+
+//deatiling Motor class Methods
+
+void Motor::Forward(int pwmR, int pwmL) {
+  Serial.println("F");
+  analogWrite(ENA, pwmR);               //Forward drives the car forwards at a speed specified by analog writes from the pwm pins
+  analogWrite(ENB, pwmL);               //specified by analog writes from the pwm pins
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);               //offsets between the pwm of the right and left side should produce
+  digitalWrite(IN3, HIGH);              //curved paths
+  digitalWrite(IN4, LOW);
+}
+
+void Motor::Left(int pwmR, int pwmL) {
+  Serial.println("L");
+  analogWrite(ENA, pwmR);
+  analogWrite(ENB, pwmL);               //used for sharp turns, one side is the reverse of the other
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+void Motor::Right(int pwmR, int pwmL) {
+  Serial.println("R");
+  analogWrite(ENA, pwmR);
+  analogWrite(ENB, pwmL);               //used for sharp turns, one side is the reverse of the other
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void Motor::Back(int pwmR, int pwmL) {
+  analogWrite(ENA, pwmR);
+  analogWrite(ENB, pwmL);               //potential use of a backwards drive function, if too close to an object
+  digitalWrite(IN1, LOW);               //and neither side direction has adequate space for maneuvers
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+void Motor::Stop() {
+  Serial.println("S");
+  digitalWrite(ENA, LOW);               //once a sharp turn is reached the stop function is called in which
+  digitalWrite(ENB, LOW);               //power to the motors is cut, hence no need for pwm input parameters
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////LINE_TRACKER_CLASS/////////////////////////////////////////
+
+/*class detailing attributes and methods associated with line tracking,
+  could be included as a header file and named as an object within the
+  main code*/
+
+class Line_Tracker
+{
+  public:
+    int L1 = 0;         //initialising pin numbers for the line tracking IR sensors
+    int L2 = 1;
+    int L3 = 2;
+    int L4 = 3;
+    int L5 = 4;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////MAIN_CODE///////////////////////////////////////////////
+
+
+//defining object names
+Line_Tracker LTrack;
+Motor Mtr;
+US_Sensor Ultrsnc;
+
+
+
+void setup() {
+  Serial.begin(9600);               //initialise serial monitor
+  pinMode(Ultrsnc.trigPin, OUTPUT); //setting all pinmodes
+  pinMode(Ultrsnc.echoPin, INPUT);
+  pinMode(LTrack.L1, INPUT);
+  pinMode(LTrack.L2, INPUT);
+  pinMode(LTrack.L3, INPUT);
+  pinMode(LTrack.L4, INPUT);
+  pinMode(LTrack.L5, INPUT);
+  pinMode(Mtr.ENA, OUTPUT);
+  pinMode(Mtr.ENB, OUTPUT);
+  pinMode(Mtr.IN1, OUTPUT);
+  pinMode(Mtr.IN2, OUTPUT);
+  pinMode(Mtr.IN3, OUTPUT);
+  pinMode(Mtr.IN4, OUTPUT);
+}
+
+
+void loop() {
+get_pwm:
+  Mtr.pwm = 120;
+  //obtain distance from Ultrsnc
+  Ultrsnc.Distance = Ultrsnc.Distance_Test();
+  if (Ultrsnc.Distance < 400) {
+    Mtr.pwm = 80;
+  }
+  else if (Ultrsnc.Distance < 80) {
+    Mtr.Stop();
+    Mtr.pwm = 0;
+  }
+
+  Mtr.pwm = 120;
+  //if the line is on the far left tracker turn left
+  if (analogRead(LTrack.L1) >= 200) {
+    Mtr.Stop();
+    while (analogRead(LTrack.L3) < 50) {     //until the middle tracker goes high OR until the Ultrsnc measures a close distance
+      Mtr.Left(120, 120);
+    }
+  }
+
+  else if (analogRead(LTrack.L3) >= 200 || analogRead(LTrack.L2) >= 200 || analogRead(LTrack.L4) >= 200 ) {
+    while (analogRead(LTrack.L1) < 50 && analogRead(LTrack.L5) < 50) {
+      if (Ultrsnc.Distance < 200) {
+        Mtr.Stop();
+        Serial.println("BREAK");
+        break;
+        Serial.println("BREAK");
+      }
+      else if (analogRead(LTrack.L3) >= 200) {
+        Mtr.Forward(Mtr.pwm, 1.5 * Mtr.pwm);
+      }
+      else if (analogRead(LTrack.L2) >= 200) {
+        Mtr.Forward(1.5 * Mtr.pwm, Mtr.pwm);
+      }
+
+      else {
+        Mtr.Forward(Mtr.pwm, Mtr.pwm);
+      }
+      Ultrsnc.Distance = Ultrsnc.Distance_Test();
+      Mtr.pwm = Mtr.pwm + 10;
+    }
+  }
+
+  else if (analogRead(LTrack.L5) >= 200) {
+    Mtr.Stop();
+    delay(100);
+    while (analogRead(LTrack.L3) < 50) {
+      Mtr.Right(120, 120);
+    }
+  }
+  else {
+    Serial.println("STOP");
+    Mtr.Stop();
+  }
+}
